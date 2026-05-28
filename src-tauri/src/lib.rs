@@ -18,6 +18,13 @@ use objc2::MainThreadMarker;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::NSApplication;
 
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
+}
+
 fn png_data_url(bytes: &[u8]) -> String {
     format!(
         "data:image/png;base64,{}",
@@ -41,6 +48,24 @@ fn temp_capture_path() -> PathBuf {
         .unwrap_or_default()
         .as_millis();
     std::env::temp_dir().join(format!("fast-capture-{millis}.png"))
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_screen_capture_permission() -> Result<(), String> {
+    let has_permission = unsafe { CGPreflightScreenCaptureAccess() };
+    if has_permission {
+        return Ok(());
+    }
+
+    let granted = unsafe { CGRequestScreenCaptureAccess() };
+    if granted {
+        return Ok(());
+    }
+
+    Err(
+        "FAST needs Screen Recording permission to capture regions. Enable FAST in System Settings > Privacy & Security > Screen & System Audio Recording, then quit and reopen FAST."
+            .into(),
+    )
 }
 
 struct CaptureWindowState {
@@ -168,6 +193,7 @@ async fn capture_region(window: tauri::Window) -> Result<String, String> {
     {
         let app = window.app_handle().clone();
         let path = temp_capture_path();
+        ensure_screen_capture_permission()?;
         let hidden_windows = hide_app_for_capture(&app)?;
         thread::sleep(Duration::from_millis(80));
 
