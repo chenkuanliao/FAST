@@ -27,7 +27,7 @@
     "active": true,
     "targets": "all",
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": null
     },
     "icon": [
       "icons/32x32.png",
